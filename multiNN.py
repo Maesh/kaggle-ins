@@ -3,6 +3,7 @@ import pandas as pd
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
+from keras.layers.advanced_activations import PReLU
 from keras.optimizers import Adadelta
 from keras.layers.normalization import BatchNormalization
 
@@ -12,7 +13,9 @@ class NN:
     #I made a small wrapper for the Keras model to make it more scikit-learn like
     #I think they have something like this built in already, oh well
     #See http://keras.io/ for parameter options
-    def __init__(self, inputShape, layers, dropout = [], activation = 'relu', init = 'uniform', loss = 'rmse', optimizer = 'adadelta', nb_epochs = 50, batch_size = 32, verbose = 1):
+    def __init__(self, inputShape, layers, dropout = [], activation = 'relu', 
+        init = 'uniform', loss = 'rmse', optimizer = 'adadelta', nb_epochs = 50, 
+        batch_size = 32, verbose = 1, show_accuracy = True, validation_split=0.15):
 
         model = Sequential()
         for i in range(len(layers)):
@@ -24,7 +27,10 @@ class NN:
                 print ("Adding Layer " + str(i) + ": " + str(layers[i]))
                 model.add(Dense(layers[i], init = init))
             print ("Adding " + activation + " layer")
-            model.add(Activation(activation))
+            if activation == 'prelu':
+                PReLU(init=init)
+            else :
+                model.add(Activation(activation))
             model.add(BatchNormalization())
             if len(dropout) > i:
                 print ("Adding " + str(dropout[i]) + " dropout")
@@ -36,9 +42,13 @@ class NN:
         self.nb_epochs = nb_epochs
         self.batch_size = batch_size
         self.verbose = verbose
+        self.validation_split = validation_split
+        self.show_accuracy = show_accuracy
 
     def fit(self, X, y): 
-        self.model.fit(X.values, y.values, nb_epoch=self.nb_epochs, batch_size=self.batch_size, verbose = self.verbose)
+        self.model.fit(X.values, y.values, nb_epoch=self.nb_epochs, 
+            batch_size=self.batch_size, verbose = self.verbose, validation_split=self.validation_split,
+            show_accuracy = self.show_accuracy)
         
     def predict(self, X, batch_size = 128, verbose = 1):
         return self.model.predict(X.values, batch_size = batch_size, verbose = verbose)
@@ -101,7 +111,26 @@ def make_dataset(useDummies = True, fillNANStrategy = "mean", useNormalization =
     train.drop(labels = "Response", axis = 1, inplace = True)
     test.drop(labels = "Id", axis = 1, inplace = True)
     
-    categoricalVariables = ["Product_Info_1", "Product_Info_2", "Product_Info_3", "Product_Info_5", "Product_Info_6", "Product_Info_7", "Employment_Info_2", "Employment_Info_3", "Employment_Info_5", "InsuredInfo_1", "InsuredInfo_2", "InsuredInfo_3", "InsuredInfo_4", "InsuredInfo_5", "InsuredInfo_6", "InsuredInfo_7", "Insurance_History_1", "Insurance_History_2", "Insurance_History_3", "Insurance_History_4", "Insurance_History_7", "Insurance_History_8", "Insurance_History_9", "Family_Hist_1", "Medical_History_2", "Medical_History_3", "Medical_History_4", "Medical_History_5", "Medical_History_6", "Medical_History_7", "Medical_History_8", "Medical_History_9", "Medical_History_10", "Medical_History_11", "Medical_History_12", "Medical_History_13", "Medical_History_14", "Medical_History_16", "Medical_History_17", "Medical_History_18", "Medical_History_19", "Medical_History_20", "Medical_History_21", "Medical_History_22", "Medical_History_23", "Medical_History_25", "Medical_History_26", "Medical_History_27", "Medical_History_28", "Medical_History_29", "Medical_History_30", "Medical_History_31", "Medical_History_33", "Medical_History_34", "Medical_History_35", "Medical_History_36", "Medical_History_37", "Medical_History_38", "Medical_History_39", "Medical_History_40", "Medical_History_41"]
+    categoricalVariables = ["Product_Info_1", "Product_Info_2", "Product_Info_3", 
+        "Product_Info_5", "Product_Info_6", "Product_Info_7", "Employment_Info_2", 
+        "Employment_Info_3", "Employment_Info_5", "InsuredInfo_1", "InsuredInfo_2", 
+        "InsuredInfo_3", "InsuredInfo_4", "InsuredInfo_5", "InsuredInfo_6", 
+        "InsuredInfo_7", "Insurance_History_1", "Insurance_History_2", 
+        "Insurance_History_3", "Insurance_History_4", "Insurance_History_7", 
+        "Insurance_History_8", "Insurance_History_9", "Family_Hist_1", 
+        "Medical_History_2", "Medical_History_3", "Medical_History_4", 
+        "Medical_History_5", "Medical_History_6", "Medical_History_7", 
+        "Medical_History_8", "Medical_History_9", "Medical_History_10", 
+        "Medical_History_11", "Medical_History_12", "Medical_History_13", 
+        "Medical_History_14", "Medical_History_16", "Medical_History_17", 
+        "Medical_History_18", "Medical_History_19", "Medical_History_20", 
+        "Medical_History_21", "Medical_History_22", "Medical_History_23", 
+        "Medical_History_25", "Medical_History_26", "Medical_History_27", 
+        "Medical_History_28", "Medical_History_29", "Medical_History_30", 
+        "Medical_History_31", "Medical_History_33", "Medical_History_34", 
+        "Medical_History_35", "Medical_History_36", "Medical_History_37", 
+        "Medical_History_38", "Medical_History_39", "Medical_History_40", 
+        "Medical_History_41"]
 
     if useDummies == True:
         print ("Generating dummies...")
@@ -120,21 +149,47 @@ def make_dataset(useDummies = True, fillNANStrategy = "mean", useNormalization =
     
     return train, test, labels
 
-print ("Creating dataset...") 
-train, test, labels = make_dataset(useDummies = True, fillNANStrategy = "mean", useNormalization = True)
+if __name__ == '__main__':
+    print ("Creating dataset...") 
+    train, test, labels = make_dataset(useDummies = True, 
+        fillNANStrategy = "mean", useNormalization = True)
 
-t0 = time.time()
-clf = NN(inputShape = train.shape[1], layers = [128, 64], dropout = [0.5, 0.5], loss='mae', optimizer = 'adadelta', init = 'glorot_normal', nb_epochs = 50)
+    # NN configurations
+    configs = {}
+    configs[0] = [32,32]
+    configs[1] = [128,64]
+    configs[2] = [128,128,64]
+    configs[3] = [32,64,32]
+    configs[4] = [256,128,64]
 
-print ("Training model...")
-clf.fit(train, labels)
+    # Specify dropouts
+    dos = {}
+    dos[0] = [0.5,0.5]
+    dos[1] = [0.5,0.5]
+    dos[2] = [0.5,0.5,0.5]
+    dos[3] = [0.5,0.5,0.5]
+    dos[4] = [0.5,0.5,0.5]
 
-print ("Making predictions...")
-pred = clf.predict(test)
-t1 = time.time()
-print("training and testing took %f minutes" % ((t1-t0)/60.))
-predClipped = np.clip(np.round(pred), 1, 8).astype(int) #Make the submissions within the accepted range
+    t0 = time.time()
+    for i in range(5) :
+        clf = NN(inputShape = train.shape[1], layers = configs[i], 
+            dropout = dos[i], loss='mae', optimizer = 'adadelta', 
+            init = 'glorot_normal', nb_epochs = 50, validation_split=0.15,
+            activation='prelu', show_accuracy = False)
 
-submission = pd.read_csv('../sample_submission.csv')
-submission["Response"] = predClipped
-submission.to_csv('NNSubmission.csv', index=False)
+        print ("Training model...")
+        clf.fit(train, labels)
+
+        print ("Making predictions...")
+        pred = clf.predict(test)
+        
+        
+        predClipped = np.clip(np.round(pred), 1, 8).astype(int) #Make the submissions within the accepted range
+
+        submission = pd.read_csv('../sample_submission.csv')
+        submission["Response"] = predClipped
+        submission.to_csv('NN.prelu.config.'+str(i)+'.csv', index=False)
+
+    t1 = time.time()
+    print("training and testing took %f minutes" % ((t1-t0)/60.))
+    
