@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import theano
+import theano.tensor as T
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
@@ -7,7 +9,11 @@ from keras.layers.advanced_activations import PReLU
 from keras.optimizers import Adadelta
 from keras.layers.normalization import BatchNormalization
 
+from kagmetrics import quadratic_weighted_kappa
+
 import time
+
+epsilon = 1.0e-9
 
 class NN:
     #I made a small wrapper for the Keras model to make it more scikit-learn like
@@ -149,6 +155,13 @@ def make_dataset(useDummies = True, fillNANStrategy = "mean", useNormalization =
     
     return train, test, labels
 
+def custom_objective(y_true, y_pred):
+    '''Just another crossentropy'''
+    y_pred = T.clip(y_pred, epsilon, 1.0 - epsilon)
+    y_pred /= y_pred.sum(axis=-1, keepdims=True)
+    cce = T.nnet.categorical_crossentropy(y_pred, y_true)
+    return cce
+
 if __name__ == '__main__':
     print ("Creating dataset...") 
     train, test, labels = make_dataset(useDummies = True, 
@@ -173,7 +186,7 @@ if __name__ == '__main__':
     t0 = time.time()
     for i in range(5) :
         clf = NN(inputShape = train.shape[1], layers = configs[i], 
-            dropout = dos[i], loss='mae', optimizer = 'adadelta', 
+            dropout = dos[i], loss=custom_objective, optimizer = 'adadelta', 
             init = 'glorot_normal', nb_epochs = 5, validation_split=0,
             activation='relu', show_accuracy = False)
 
@@ -188,7 +201,7 @@ if __name__ == '__main__':
 
         submission = pd.read_csv('../sample_submission.csv')
         submission["Response"] = predClipped
-        submission.to_csv('NN.prelu.config.'+str(i)+'.csv', index=False)
+        submission.to_csv('NN.prelu.cce.'+str(i)+'.csv', index=False)
 
     t1 = time.time()
     print("training and testing took %f minutes" % ((t1-t0)/60.))
