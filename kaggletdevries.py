@@ -3,7 +3,6 @@ import pandas as pd
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
-from keras.layers.advanced_activations import PReLU
 from keras.optimizers import Adadelta
 from keras.layers.normalization import BatchNormalization
 
@@ -28,7 +27,7 @@ class NN:
                 model.add(Dense(layers[i], init = init))
             print ("Adding " + activation + " layer")
             if activation == 'prelu':
-                PReLU(init=init)
+                keras.layers.advanced_activations.PReLU(init=init)
             else :
                 model.add(Activation(activation))
             model.add(BatchNormalization())
@@ -154,42 +153,21 @@ if __name__ == '__main__':
     train, test, labels = make_dataset(useDummies = True, 
         fillNANStrategy = "mean", useNormalization = True)
 
-    # NN configurations
-    configs = {}
-    configs[0] = [32,32]
-    configs[1] = [128,64]
-    configs[2] = [128,128,64]
-    configs[3] = [32,64,32]
-    configs[4] = [256,128,64]
-
-    # Specify dropouts
-    dos = {}
-    dos[0] = [0.5,0.5]
-    dos[1] = [0.5,0.5]
-    dos[2] = [0.5,0.5,0.5]
-    dos[3] = [0.5,0.5,0.5]
-    dos[4] = [0.5,0.5,0.5]
-
     t0 = time.time()
-    for i in range(5) :
-        clf = NN(inputShape = train.shape[1], layers = configs[i], 
-            dropout = dos[i], loss='mae', optimizer = 'adadelta', 
-            init = 'glorot_normal', nb_epochs = 5, validation_split=0,
-            activation='relu', show_accuracy = False)
+    clf = NN(inputShape = train.shape[1], layers = [128, 128, 64], 
+        dropout = [0.5, 0.5], loss='mae', optimizer = 'adadelta', 
+        init = 'glorot_normal', nb_epochs = 50, validation_split=0,
+        activation='relu')
 
-        print ("Training model...")
-        clf.fit(train, labels)
+    print ("Training model...")
+    clf.fit(train, labels)
 
-        print ("Making predictions...")
-        pred = clf.predict(test)
-        
-        
-        predClipped = np.clip(np.round(pred), 1, 8).astype(int) #Make the submissions within the accepted range
-
-        submission = pd.read_csv('../sample_submission.csv')
-        submission["Response"] = predClipped
-        submission.to_csv('NN.prelu.config.'+str(i)+'.csv', index=False)
-
+    print ("Making predictions...")
+    pred = clf.predict(test)
     t1 = time.time()
     print("training and testing took %f minutes" % ((t1-t0)/60.))
-    
+    predClipped = np.clip(np.round(pred), 1, 8).astype(int) #Make the submissions within the accepted range
+
+    submission = pd.read_csv('../sample_submission.csv')
+    submission["Response"] = predClipped
+    submission.to_csv('NN.prelu.dummy.csv', index=False)
